@@ -1,0 +1,39 @@
+//@version=5
+indicator("Volume-Weighted Rolling Median", overlay=true)
+
+// Input for lookback period
+length = input.int(title="Median Length", defval=14, minval=1)
+
+// Volume smoothing factor
+volSmooth = input.float(title="Volume Smoothing", defval=0.5, minval=0.0, maxval=1.0, step=0.1)
+
+// Calculate rolling median
+medianValue = ta.median(close, length)
+
+// Volume-weighted adjustment
+// Use volume to determine how much weight the median has
+vol = volume
+avgVol = ta.sma(volume, length)
+
+// Normalize volume ratio (current vol / avg vol)
+volRatio = vol / avgVol
+
+// Smooth the volume ratio
+smoothedVolRatio = ta.wma(volRatio, 5)
+
+// Apply volume weighting to median
+// Higher volume = median has more "influence"
+vwrm = medianValue * (1 + (smoothedVolRatio - 1) * volSmooth)
+
+// Plot
+plot(vwrm, title="Volume-Weighted Median", color=color.green, linewidth=2)
+
+// Also plot plain median for comparison
+plot(medianValue, title="Median (Raw)", color=color.gray, linewidth=1, display=display.none)
+
+// Toggle to show raw median
+showRawMedian = input.bool(title="Show Raw Median", defval=false)
+plot(showRawMedian ? medianValue : na, title="Median (Raw)", color=color.gray, linewidth=1)
+
+// Fill between price and the indicator
+fill(plot(close), plot(vwrm), title="Fill", color=color.new(color.green, 85))
