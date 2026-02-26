@@ -1,0 +1,19 @@
+//@version=5
+indicator("Rolling Median", overlay=true)
+
+// Median Length input
+length = input.int(title="Length", defval=14, minval=1)
+
+// Calculate rolling median of close price
+medianValue = request.security(syminfo.tickerid, timeframe.period, ta.median(close, length))
+
+// Plot the median line
+plot(medianValue, title="Median", color=color.blue, linewidth=2)
+
+// Optional: Add a simple moving average for comparison
+maValue = request.security(syminfo.tickerid, timeframe.period, ta.sma(close, length))
+plot(maValue, title="SMA", color=color.orange, linewidth=1, display=display.none)
+
+// Toggle to show SMA for comparison
+showSMA = input.bool(title="Show SMA Comparison", defval=false)
+plot(showSMA ? maValue : na, title="SMA (Comparison)", color=color.orange, linewidth=1)
