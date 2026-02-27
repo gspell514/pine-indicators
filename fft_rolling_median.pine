@@ -1,0 +1,53 @@
+//@version=5
+indicator("FFT-Smoothed Rolling Median", overlay=true)
+
+// Inputs
+medianLength = input.int(title="Median Length", defval=14, minval=1)
+fftStrength = input.float(title="FFT Smoothing Strength", defval=0.5, minval=0.0, maxval=1.0, step=0.1)
+noiseFilter = input.int(title="Noise Filter Period", defval=5, minval=2, maxval=20)
+
+// Simple DFT-like transform to extract cyclical components
+// Since Pine Script doesn't have native FFT, we simulate it with harmonic analysis
+get_fft_component(src, period, bars) =>
+    // Sum of sinusoidal components at different frequencies
+    sumCos = 0.0
+    sumSin = 0.0
+    
+    // Simple harmonic decomposition (simplified FFT approximation)
+    for i = 0 to bars - 1
+        angle = 2 * math.pi * i / period
+        weight = 1.0 - (i / bars)  // Weight newer data more
+        sumCos += math.cos(angle) * src[i] * weight
+        sumSin += math.sin(angle) * src[i] * weight
+    
+    math.sqrt(sumCos * sumCos + sumSin * sumSin)
+
+// Calculate the median
+medianVal = ta.median(close, medianLength)
+
+// Calculate FFT-like smoothed version
+// Extract dominant cycle and use it to smooth
+cycleLength = 20  // Look for ~20 bar cycles
+fftComponent = get_fft_component(close, cycleLength, medianLength)
+
+// Use FFT component to filter noise
+// Higher fftStrength = more aggressive filtering
+noiseThreshold = ta.sma(close, noiseFilter)
+smoothedMedian = medianVal + (fftComponent - noiseThreshold) * fftStrength
+
+// Alternative: Pure FFT-like trend (denoised price)
+fftTrend = ta.wma(close, medianLength) + (fftComponent - ta.wma(fftComponent, medianLength)) * fftStrength
+
+// Plot
+plot(smoothedMedian, title="FFT-Median", color=color.blue, linewidth=2)
+plot(fftTrend, title="FFT Trend", color=color.red, linewidth=1)
+
+// Toggle options
+showMedian = input.bool(title="Show Raw Median", defval=false)
+plot(showMedian ? medianVal : na, title="Raw Median", color=color.gray, linewidth=1)
+
+showFFTSmoothed = input.bool(title="Show FFT Trend Line", defval=false)
+plot(showFFTSmoothed ? fftTrend : na, title="FFT Trend", color=color.red, linewidth=1)
+
+// Fill between price and indicator
+fill(plot(close), plot(smoothedMedian), title="Fill", color=color.new(color.blue, 85))
