@@ -25,7 +25,6 @@ atrMultiplier = input.float(title="ATR Multiplier", defval=2.0)
 
 // Session Filter
 useSessionFilter = input.bool(title="Use Session Filter", defval=false)
-sessionStart = input.session(title="Session Start", defval="0930-1600")
 
 // Volatility Filter
 useVolatilityFilter = input.bool(title="Use Volatility Filter", defval=false)
@@ -48,9 +47,8 @@ rsi = ta.rsi(close, rsiLength)
 atr = ta.atr(atrLength)
 
 // Session & Time
-inSession = not useSessionFilter or not na(time(session=sessionStart))
 isWeekday = dayofweek != dayofweek.saturday and dayofweek != dayofweek.sunday
-canTrade = not useSessionFilter or (isWeekday and inSession)
+canTrade = not useSessionFilter or isWeekday
 
 // Volatility Check
 atrCheck = not useVolatilityFilter or (atr >= minATR and atr <= maxATR)
