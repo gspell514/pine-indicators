@@ -1,0 +1,104 @@
+//@version=6
+strategy("MA Crossover Advanced", 
+     overlay=true, 
+     default_qty_type=strategy.percent_of_equity, 
+     default_qty_value=10,
+     commission_type=strategy.commission.percent,
+     commission_value=0.1)
+
+// === INPUTS ===
+
+// Moving Averages
+fastLength = input.int(title="Fast MA", defval=9)
+slowLength = input.int(title="Slow MA", defval=21)
+
+// RSI Filter
+useRSIFilter = input.bool(title="Use RSI Filter", defval=true)
+rsiLength = input.int(title="RSI Period", defval=14)
+rsiOverbought = input.float(title="RSI Overbought", defval=70)
+rsiOversold = input.float(title="RSI Oversold", defval=30)
+
+// ATR-Based Stops (instead of fixed %)
+useATRStops = input.bool(title="Use ATR Stops", defval=true)
+atrLength = input.int(title="ATR Period", defval=14)
+atrMultiplier = input.float(title="ATR Multiplier", defval=2.0)
+
+// Session Filter
+useSessionFilter = input.bool(title="Use Session Filter", defval=false)
+sessionStart = input.session(title="Session Start", defval="0930-1600")
+
+// Volatility Filter
+useVolatilityFilter = input.bool(title="Use Volatility Filter", defval=false)
+minATR = input.float(title="Min ATR", defval=0.5)
+maxATR = input.float(title="Max ATR", defval=5.0)
+
+// Position Settings
+positionSize = input.int(title="Position Size %", defval=10)
+
+// === CALCULATIONS ===
+
+// Moving Averages
+fastMA = ta.sma(close, fastLength)
+slowMA = ta.sma(close, slowLength)
+
+// RSI
+rsi = ta.rsi(close, rsiLength)
+
+// ATR
+atr = ta.atr(atrLength)
+
+// Session & Time
+inSession = not useSessionFilter or not na(time(session=sessionStart))
+isWeekday = dayofweek != dayofweek.saturday and dayofweek != dayofweek.sunday
+canTrade = not useSessionFilter or (isWeekday and inSession)
+
+// Volatility Check
+atrCheck = not useVolatilityFilter or (atr >= minATR and atr <= maxATR)
+
+// === SIGNALS ===
+
+// Buy: MA crossover + RSI oversold + session + volatility
+buySignal = ta.crossover(fastMA, slowMA) and (not useRSIFilter or rsi < rsiOversold)
+
+// Sell: MA crossunder + RSI overbought + session + volatility
+sellSignal = ta.crossunder(fastMA, slowMA) and (not useRSIFilter or rsi > rsiOverbought)
+
+canEnter = canTrade and atrCheck
+
+// === PLOTTING ===
+
+plot(fastMA, color=color.blue, title="Fast MA")
+plot(slowMA, color=color.red, title="Slow MA")
+
+plotshape(buySignal and canEnter, title="Buy", text="BUY", color=color.green, 
+     style=shape.labelup, location=location.belowbar, size=size.tiny)
+plotshape(sellSignal and canEnter, title="Sell", text="SELL", color=color.red, 
+     style=shape.labeldown, location=location.abovebar, size=size.tiny)
+
+// Plot RSI in separate pane
+plot(useRSIFilter ? rsi : na, title="RSI", color=color.purple, linewidth=2)
+hline(useRSIFilter ? rsiOversold : na, title="RSI Oversold", color=color.green, linestyle=hline.style_dashed)
+hline(useRSIFilter ? rsiOverbought : na, title="RSI Overbought", color=color.red, linestyle=hline.style_dashed)
+
+// === EXECUTION ===
+
+var float entryPrice = 0
+var float stopLossPrice = 0
+var float takeProfitPrice = 0
+
+if (buySignal and canEnter and strategy.position_size == 0)
+    entryPrice := close
+    
+    // ATR-based Stop Loss
+    if (useATRStops)
+        stopLossPrice := close - (atr * atrMultiplier)
+        takeProfitPrice := close + (atr * atrMultiplier * 2)
+    else
+        stopLossPrice := close * 0.98  // 2% stop
+        takeProfitPrice := close * 1.05  // 5% target
+    
+    strategy.entry(id="Buy", direction=strategy.long)
+    strategy.exit(id="Exit", from_entry="Buy", stop=stopLossPrice, limit=takeProfitPrice)
+
+if (sellSignal and canEnter and strategy.position_size > 0)
+    strategy.close(id="Buy", comment="MA Sell Signal")
